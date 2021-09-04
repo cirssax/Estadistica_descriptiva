@@ -1,0 +1,269 @@
+﻿
+@{
+    ViewData["Title"] = "Clustering";
+    Layout = null;
+}
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"] - VisualizadorMapas</title>
+    <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
+    <link rel="stylesheet" href="~/css/site.css" />
+    <link rel="stylesheet" href="https://js.arcgis.com/4.19/esri/themes/light/main.css" />
+    <style>
+        html,
+        body,
+        #viewDiv {
+            padding: 0;
+            margin: 0;
+            height: 100%;
+            width: 100%;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="Leyenda">
+    </div>
+    <div id="viewDiv">
+    </div>
+
+
+
+    <script src="~/lib/jquery/dist/jquery.min.js"></script>
+    <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="~/js/site.js" asp-append-version="true"></script>
+    <script src="https://js.arcgis.com/4.19/"></script>
+    <script>
+        require([
+            "esri/Map",
+            "esri/layers/GeoJSONLayer",
+            "esri/views/MapView",
+            "esri/widgets/Legend",
+            "esri/widgets/Expand",
+            "esri/widgets/BasemapGallery",
+            "esri/widgets/Search",
+            "esri/widgets/Popup",
+            "esri/widgets/Locate",
+            "esri/intl",
+            "esri/layers/FeatureLayer",
+            "esri/widgets/Legend"
+        ],
+            function (Map, GeoJSONLayer, MapView, Legend, Expand, BasemapGallery, Search, Popup, Locate, intl, FeatureLayer, Legend) {
+                const clusterConfig = {
+                    type: "cluster",
+                    clusterRadius: "100px",
+                    // {cluster_count} is an aggregate field containing
+                    // the number of features comprised by the cluster
+                    popupTemplate: {
+                        content: "Se tienen registrados {cluster_count} incidentes en este sector.",
+                        fieldInfos: [{
+                            fieldName: "cluster_count",
+                            format: {
+                                places: 0,
+                                digitSeparator: true
+                            }
+                        }]
+                    },
+                    clusterMinSize: "24px",
+                    clusterMaxSize: "60px",
+                    labelingInfo: [{
+                        deconflictionStrategy: "none",
+                        labelExpressionInfo: {
+                            expression: "Text($feature.cluster_count, '#,###')"
+                        },
+                        symbol: {
+                            type: "text",
+                            color: "#004a5d",
+                            font: {
+                                weight: "bold",
+                                family: "Noto Sans",
+                                size: "12px"
+                            }
+                        },
+                        labelPlacement: "center-center",
+                    }]
+                }
+
+                const layer = new GeoJSONLayer({
+                    title: "Incidentes registrados",
+                    url: `@Url.Action("Datos", "Home")`,
+                    copyright: "CISR",
+                    featureReduction: clusterConfig,
+                    popupTemplate: {
+                        title: "Información incendio {id}",
+                        content: `<table class="table table-borderless table-sm">
+                                    <tr>
+                                        <td><b>Region</b></td>
+                                        <td>{region}</td>
+                                    </tr>
+                                    <tr>
+                                        <td><b>Provincia</b></td>
+                                        <td>{provincia}</td>
+                                    </tr>
+                                    <tr>
+                                        <td><b>Comuna</b></td>
+                                        <td>{comuna}</td>
+                                    </tr>
+                                    <tr>
+                                        <td><b>Superficie afectada (Ha)</b></td>
+                                        <td>{sup_afectada}</td>
+                                    </tr>
+                                    <tr>
+                                        <td><b>Temperatura (°C)</b></td>
+                                        <td>{temperatura}</td>
+                                    </tr>
+                                    <tr>
+                                        <td><b>Velocidad viento (kn/h)</b></td>
+                                        <td>{vel_viento}</td>
+                                    </tr>
+                                    <tr>
+                                        <td><b>Fecha inicio</b></td>
+                                        <td>{fecha_inicio}</td>
+                                    </tr>
+                                    <tr>
+                                        <td><b>Fecha fin</b></td>
+                                        <td>{fecha_fin}</td>
+                                    </tr>
+                                </table>`,
+                        fieldInfos: [
+                            {
+                                fieldName: "time",
+                                format: {
+                                    dateFormat: "short-date-short-time"
+                                }
+                            }
+                        ]
+                    },
+                    renderer: {
+                        type: "simple",
+                        field: "mag",
+                        symbol: {
+                            type: "simple-marker",
+                            size: 10,
+                            color: "#69dcff",
+                            outline: {
+                                color: "rgba(0, 139, 174, 0.5)",
+                                width: 10
+                            }
+                        }
+                    }
+                });
+
+                const baseLayer = new FeatureLayer({
+                    legendEnabled: false,
+                    popupEnabled: false,
+                    renderer: {
+                        type: "simple",
+                        symbol: {
+                            type: "simple-fill",
+                            color: [65, 65, 65, 1],
+                            outline: {
+                                color: [50, 50, 50, 0.75],
+                                width: 10
+                            }
+                        }
+                    },
+                    spatialReference: {
+                        wkid: 5936
+                    }
+                });
+
+                const map = new Map({
+                    basemap: "topo-vector",
+                    layers: [baseLayer, layer]
+                });
+
+                var view = new MapView({
+                    container: "viewDiv",
+                    map: map,
+                    center: [-71.251135, -34.979751],
+                    zoom: 6,
+                    popup: {
+                        collapsed: false,
+                        collapseEnabled: true,
+                        dockEnabled: true,
+                        dockOptions: {
+                            buttonEnabled: false,
+                            breakpoint: false,
+                            position: "bottom-right"
+                        }
+                    }
+                });
+
+                // widget de busqueda
+                var search = new Search({
+                    view: view
+                });
+
+                view.ui.add(search, "top-right");
+
+                // Mapas base
+                var basemapGallery = new BasemapGallery({
+                    view: view,
+                    container: document.createElement("div")
+                });
+
+                // Leyeneda de la cantidad la proporcion respecto a la cantidad
+                var comps = `<div id="infoDiv" class="esri-widget">
+                <button id="cluster" class="esri-button">Desactivar clustering</button>
+                <div id="legendDiv"></div>
+                </div>`;
+                var html = $.parseHTML(comps);
+                $("#Leyenda").append(html);
+
+                const legend = new Legend({
+                    view: view,
+                    container: "legendDiv"
+                });
+
+                const infoDiv = document.getElementById("infoDiv");
+
+                var desabledClusternig = new Expand({
+                    view: view,
+                    content: infoDiv,
+                    expandIconClass: "esri-icon-layer-list",
+                    expanded: false,
+                    mode: "floating"
+                });
+
+                view.ui.add(desabledClusternig, "top-right");
+
+                const toggleButton = document.getElementById("cluster");
+
+                // Funcion para activar o desactivar el clustering
+                toggleButton.addEventListener("click", function () {
+                    let fr = layer.featureReduction;
+                    layer.featureReduction = fr && fr.type === "cluster" ? null : clusterConfig;
+                    toggleButton.innerText = toggleButton.innerText === "Activar clustering" ? "Desactivar clustering" : "Activar clustering";
+                });
+
+                // Widget spand para mapas base
+                var bgExpand = new Expand({
+                    view: view,
+                    content: basemapGallery,
+                    mode: "floating",
+                    expandTooltip: "Mapas base",
+                    label: "Mapas base"
+                });
+
+                // Se añade el mapa base
+                view.ui.add(bgExpand, "top-left");
+
+                // Se crea la instancia del widget de trackeo y se inserta en la UI
+                var locateBtn = new Locate({
+                    view: view
+                });
+
+                view.ui.add(locateBtn, {
+                    position: "top-left"
+                });
+
+                intl.setLocale("es");
+            });
+    </script>
+</body>
+</html>
